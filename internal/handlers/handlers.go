@@ -5,16 +5,20 @@ import (
 	"net/http"
 
 	"github.com/aabbcc333/go-url-shortener/internal/models"
-	"github.com/aabbcc333/go-url-shortener/internal/store"
+	//"github.com/aabbcc333/go-url-shortener/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
 
-type UrlHandler struct { 
-	Store *store.StorageService
+type URLStore interface {
+    SaveURL(string, string) error
+    GetURL(string) (string, error)
 }
 
-func NewUrlHandler(s *store.StorageService) *UrlHandler{
+type UrlHandler struct {
+    Store URLStore // <--- CHANGE THIS from *store.StorageService
+}
+func NewUrlHandler(s URLStore) *UrlHandler{
 	return &UrlHandler{Store :s}
 }
 
