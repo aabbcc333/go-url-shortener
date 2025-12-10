@@ -1,0 +1,44 @@
+services:
+  db_postgres:
+    image: postgres:15-alpine
+    container_name: shortener_postgres
+    restart: always  # SENIOR UPDATE 1: Self-healing. If it crashes, restart it.
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # SENIOR UPDATE 2: Health Check
+    # Docker will run 'pg_isready' every 10s. It marks the container "Healthy" only when it works.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  cache_redis:
+    image: redis:7-alpine
+    container_name: shortener_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT}:6379" # Note: This maps based on your .env, usually just 6379
+    command: redis-server --maxmemory 100mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD}
+    # SENIOR UPDATE 3: Health Check for Redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    # SENIOR UPDATE 4: Resource Limits (Optional, but good practice)
+    # Prevents this container from eating 100% of your laptop's CPU.
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 200M
+
+volumes:
+  postgres_data:
