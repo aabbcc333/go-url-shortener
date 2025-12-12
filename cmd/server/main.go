@@ -7,11 +7,12 @@ import (
 	"os"
 
 	"github.com/aabbcc333/go-url-shortener/internal/handlers"
+	"github.com/aabbcc333/go-url-shortener/internal/middleware"
 	"github.com/aabbcc333/go-url-shortener/internal/store"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
-    _ "github.com/lib/pq"
 )
 
 
@@ -60,9 +61,15 @@ func main(){
 		c.JSON(200, gin.H{"message":"pong"})
 
 	})
-	r.POST("/api/shorten", urlHandler.CreateShortUrl)
+	
 	r.GET("/:shortCode",urlHandler.ResolveUrl)
 	fmt.Println("🚀 Server running on :8080")
+
+	api := r.Group("/api")
+	api.Use(middleware.RateLimiter(rdb))
+	{
+		api.POST("/shorten", urlHandler.CreateShortUrl)
+	}
 	if err := r.Run(":8081"); err != nil {
 		log.Fatal("Server failed:", err)
 	}
