@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/aabbcc333/go-url-shortener/internal/handlers"
 	"github.com/aabbcc333/go-url-shortener/internal/middleware"
@@ -63,14 +68,44 @@ func main(){
 	})
 	
 	r.GET("/:shortCode",urlHandler.ResolveUrl)
-	fmt.Println("🚀 Server running on :8080")
-
+	
 	api := r.Group("/api")
 	api.Use(middleware.RateLimiter(rdb))
 	{
 		api.POST("/shorten", urlHandler.CreateShortUrl)
 	}
-	if err := r.Run(":8081"); err != nil {
-		log.Fatal("Server failed:", err)
+	srv := http.Server{
+		Addr : ":8081",
+		Handler: r,
+		ReadHeaderTimeout: 2 * time.Second, 
+		WriteTimeout: 30 * time.Second,
+		ReadTimeout: 10 * time.Second,
+		IdleTimeout: 60 * time.Second,
 	}
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	go func(){
+	log.Printf("listen and server on 8081")
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed{
+		log.Fatalf("could not start the server")
+	}
+    }()
+	sig := <- stop 
+	log.Printf("recived %s signal",sig)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
+	defer cancel() 
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("❌ Server forced to shutdown: %v", err)
+	}
+
+	log.Println("closing datbase connections")
+	if err:= db.Close(); err != nil{
+		log.Printf("error clsoing postgres")
+	}
+	if err:= rdb.Close(); err != nil{
+		log.Printf("Error closing redis")
+	}
+	log.Println("server existed gracefully")
 }
